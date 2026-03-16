@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0A0805">
+    <title>☘️ Paddy's Rush</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: #0A0805;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* ── Game canvas: full screen ── */
+        #game-container { position: fixed; inset: 0; width: 100%; height: 100%; }
+        #game-container canvas { display: block; }
+
+        /* ── D-PAD: bottom-right overlay ── */
+        #dpad {
+            position: fixed;
+            right: 12px; bottom: 12px;
+            z-index: 100;
+            
+            display: grid;
+            grid-template-columns: 48px 48px 48px;
+            grid-template-rows: 48px 48px 48px;
+            gap: 4px;
+            touch-action: none;
+        }
+        .dp {
+            width: 48px; height: 48px; border-radius: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; color: rgba(255, 255, 255, 0.7);
+            touch-action: none;
+        }
+        .dp.on {
+            background: rgba(255, 215, 0, 0.5);
+            border-color: #FFD700;
+            color: #FFD700;
+        }
+        .dp-empty { visibility: hidden; }
+
+        /* ── ACTION BUTTON: bottom-left overlay ── */
+        #act-btn {
+            position: fixed;
+            left: 20px; bottom: 20px;
+            z-index: 100;
+            display: flex;
+            width: 80px; height: 80px; border-radius: 50%;
+            background: radial-gradient(circle, #22AA5E 0%, #1B8A4B 100%);
+            border: 3px solid rgba(255, 215, 0, 0.6);
+            align-items: center; justify-content: center;
+            font-size: 34px;
+            box-shadow: 0 0 20px rgba(27, 138, 75, 0.4);
+            touch-action: none;
+        }
+        #act-btn.on {
+            transform: scale(0.88);
+            background: radial-gradient(circle, #44DD66 0%, #22AA5E 100%);
+            border-color: #FFD700;
+        }
+
+        /* ── PAUSE BUTTON: top-left overlay ── */
+        #pse-btn {
+            position: fixed;
+            left: 12px; top: 12px;
+            z-index: 100;
+            display: flex;
+            width: 44px; height: 38px; border-radius: 10px;
+            background: rgba(26, 18, 10, 0.85);
+            border: 2px solid rgba(255, 215, 0, 0.5);
+            align-items: center; justify-content: center;
+            font-size: 18px;
+            touch-action: none;
+        }
+
+        /* ── Rotate prompt ── */
+        #rotate {
+            display: none; position: fixed; inset: 0; background: #0A0805;
+            flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10000; color: #E8D5B0; text-align: center; gap: 16px;
+        }
+        #rotate .icon { font-size: 60px; animation: rock 1.5s ease-in-out infinite; }
+        @keyframes rock { 0%,100% { transform: rotate(0); } 50% { transform: rotate(90deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="rotate">
+        <div class="icon">📱</div>
+        <p>Tourne ton téléphone<br>en mode <strong>paysage</strong></p>
+    </div>
+
+    <div id="game-container"></div>
+
+    <!-- D-pad -->
+    <div id="dpad">
+        <div class="dp dp-empty"></div>
+        <div class="dp" data-d="up">▲</div>
+        <div class="dp dp-empty"></div>
+        <div class="dp" data-d="left">◀</div>
+        <div class="dp dp-empty"></div>
+        <div class="dp" data-d="right">▶</div>
+        <div class="dp dp-empty"></div>
+        <div class="dp" data-d="down">▼</div>
+        <div class="dp dp-empty"></div>
+    </div>
+
+    <!-- Action button -->
+    <div id="act-btn">🍺</div>
+
+    <!-- Pause button -->
+    <div id="pse-btn">⏸</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="paddys-rush.js?v=3"></script>
+    <script>
+    // ── Orientation ──
+    function chkOr() {
+        const p = window.innerHeight > window.innerWidth;
+        document.getElementById('rotate').style.display = p ? 'flex' : 'none';
+    }
+    window.addEventListener('resize', chkOr);
+    window.addEventListener('orientationchange', () => setTimeout(chkOr, 150));
+    chkOr();
+
+    // ── Fullscreen + landscape on first tap ──
+    document.body.addEventListener('touchstart', function fs() {
+        try {
+            if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{});
+            const e = document.documentElement;
+            if (e.requestFullscreen) e.requestFullscreen().catch(()=>{});
+            else if (e.webkitRequestFullscreen) e.webkitRequestFullscreen();
+        } catch(x) {}
+        document.body.removeEventListener('touchstart', fs);
+    }, { once: true });
+
+    // ── Touch state ──
+    window.touchInput = { up:false, down:false, left:false, right:false, action:false, pause:false };
+
+    // ── D-pad ──
+    const btns = document.querySelectorAll('.dp[data-d]');
+    const dpadEl = document.getElementById('dpad');
+    let dpId = null;
+
+    function clearDp() {
+        window.touchInput.up = window.touchInput.down = window.touchInput.left = window.touchInput.right = false;
+        btns.forEach(b => b.classList.remove('on'));
+    }
+
+    function hitDp(cx, cy) {
+        clearDp();
+        let best = null, bestD = 999;
+        btns.forEach(b => {
+            const r = b.getBoundingClientRect();
+            const bx = r.left + r.width/2, by = r.top + r.height/2;
+            const d = Math.hypot(cx - bx, cy - by);
+            if (d < bestD) { bestD = d; best = b; }
+        });
+        if (best && bestD < 80) {
+            window.touchInput[best.dataset.d] = true;
+            best.classList.add('on');
+        }
+    }
+
+    // Touch events (Chrome, Safari, Firefox)
+    dpadEl.addEventListener('touchstart', e => {
+        e.preventDefault();
+        dpId = e.changedTouches[0].identifier;
+        hitDp(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    }, { passive: false });
+    document.addEventListener('touchmove', e => {
+        for (const t of e.changedTouches) { if (t.identifier === dpId) { hitDp(t.clientX, t.clientY); return; } }
+    }, { passive: false });
+    document.addEventListener('touchend', e => {
+        for (const t of e.changedTouches) { if (t.identifier === dpId) { dpId = null; clearDp(); return; } }
+    });
+    document.addEventListener('touchcancel', e => {
+        for (const t of e.changedTouches) { if (t.identifier === dpId) { dpId = null; clearDp(); return; } }
+    });
+
+    // Pointer events (Brave, Edge, fallback)
+    let dpPtrId = null;
+    dpadEl.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        dpPtrId = e.pointerId;
+        dpadEl.setPointerCapture(e.pointerId);
+        hitDp(e.clientX, e.clientY);
+    });
+    dpadEl.addEventListener('pointermove', e => {
+        if (e.pointerId === dpPtrId) hitDp(e.clientX, e.clientY);
+    });
+    dpadEl.addEventListener('pointerup', e => {
+        if (e.pointerId === dpPtrId) { dpPtrId = null; clearDp(); }
+    });
+    dpadEl.addEventListener('pointercancel', e => {
+        if (e.pointerId === dpPtrId) { dpPtrId = null; clearDp(); }
+    });
+
+    // ── Action button ──
+    const ab = document.getElementById('act-btn');
+    function actOn() { window.touchInput.action = true; ab.classList.add('on'); }
+    function actOff() { window.touchInput.action = false; ab.classList.remove('on'); }
+    // Touch
+    ab.addEventListener('touchstart', e => { e.preventDefault(); actOn(); }, { passive: false });
+    ab.addEventListener('touchend', e => { e.preventDefault(); actOff(); }, { passive: false });
+    ab.addEventListener('touchcancel', actOff);
+    // Pointer
+    ab.addEventListener('pointerdown', e => { e.preventDefault(); ab.setPointerCapture(e.pointerId); actOn(); });
+    ab.addEventListener('pointerup', e => { actOff(); });
+    ab.addEventListener('pointercancel', actOff);
+
+    // ── Pause button ──
+    const pb = document.getElementById('pse-btn');
+    function pauseHit() { window.touchInput.pause = true; }
+    pb.addEventListener('touchstart', e => { e.preventDefault(); pauseHit(); }, { passive: false });
+    pb.addEventListener('pointerdown', e => { e.preventDefault(); pauseHit(); });
+
+    // PWA install
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    </script>
+</body>
+</html>
